@@ -1,26 +1,94 @@
 #include "TicketRegistry.h"
 #include <iostream>
 
-void TicketRegistry::addTicket(std::shared_ptr<BaseTicket> ticket) {
-    int number = ticket->getNumber();
-    if (isTicketRegistered(number)) {
-        std::cout << "Билет #" << number << " Уже зарегистрирован!\n";
-        return;
+TicketRegistry::AddResult TicketRegistry::addTicket(std::shared_ptr<BaseTicket> ticket) {
+    if (!ticket) {
+        std::cout << "Ошибка: передан пустой указатель на билет\n";
+        return ADD_MEMORY_ERROR;
     }
-    tickets[number] = ticket;
-    std::cout << "Билет #" << number << " [" << ticket->getType() << "] добавлен в регистр\n";
+
+    int number = ticket->getNumber();
+
+    // Проверка номера билета
+    if (number <= 0) {
+        std::cout << "Ошибка: неверный номер билета (" << number << ")\n";
+        return ADD_INVALID_NUMBER;
+    }
+
+    // Проверка на дубликат
+    if (isTicketRegistered(number)) {
+        std::cout << "Ошибка: билет #" << number << " уже зарегистрирован!\n";
+        return ADD_DUPLICATE_NUMBER;
+    }
+
+    try {
+        tickets[number] = ticket;
+        std::cout << "Билет #" << number << " [" << ticket->getType() << "] добавлен в регистр\n";
+        return ADD_SUCCESS;
+    }
+    catch (const std::bad_alloc&) {
+        std::cout << "Ошибка: не удалось выделить память для билета #" << number << "\n";
+        return ADD_MEMORY_ERROR;
+    }
+    catch (...) {
+        std::cout << "Неизвестная ошибка при добавлении билета #" << number << "\n";
+        return ADD_UNKNOWN_ERROR;
+    }
 }
 
-void TicketRegistry::addLimitedRidesTicket(int number, int saleTime, int maxTrips) {
-    addTicket(std::make_shared<LimitedRidesTicket>(number, saleTime, maxTrips));
+TicketRegistry::AddResult TicketRegistry::addLimitedRidesTicket(int number, int saleTime, int maxTrips) {
+    // Проверка параметров
+    if (number <= 0) {
+        std::cout << "Ошибка: неверный номер билета (" << number << ")\n";
+        return ADD_INVALID_NUMBER;
+    }
+
+    if (maxTrips <= 0) {
+        std::cout << "Ошибка: неверное количество поездок (" << maxTrips << ")\n";
+        return ADD_INVALID_PARAM;
+    }
+
+    if (saleTime < 0) {
+        std::cout << "Ошибка: неверное время продажи (" << saleTime << ")\n";
+        return ADD_INVALID_PARAM;
+    }
+
+    return addTicket(std::make_shared<LimitedRidesTicket>(number, saleTime, maxTrips));
 }
 
-void TicketRegistry::addTimedTicket(int number, int saleTime, int validityPeriod) {
-    addTicket(std::make_shared<TimedTicket>(number, saleTime, validityPeriod));
+TicketRegistry::AddResult TicketRegistry::addTimedTicket(int number, int saleTime, int validityPeriod) {
+    // Проверка параметров
+    if (number <= 0) {
+        std::cout << "Ошибка: неверный номер билета (" << number << ")\n";
+        return ADD_INVALID_NUMBER;
+    }
+
+    if (validityPeriod <= 0) {
+        std::cout << "Ошибка: неверный срок действия (" << validityPeriod << ")\n";
+        return ADD_INVALID_PARAM;
+    }
+
+    if (saleTime < 0) {
+        std::cout << "Ошибка: неверное время продажи (" << saleTime << ")\n";
+        return ADD_INVALID_PARAM;
+    }
+
+    return addTicket(std::make_shared<TimedTicket>(number, saleTime, validityPeriod));
 }
 
-void TicketRegistry::addUnlimitedTicket(int number, const std::string& issueReason) {
-    addTicket(std::make_shared<UnlimitedTicket>(number, issueReason));
+TicketRegistry::AddResult TicketRegistry::addUnlimitedTicket(int number, const std::string& issueReason) {
+    // Проверка параметров
+    if (number <= 0) {
+        std::cout << "Ошибка: неверный номер билета (" << number << ")\n";
+        return ADD_INVALID_NUMBER;
+    }
+
+    if (issueReason.empty()) {
+        std::cout << "Ошибка: не указана причина для бессрочного билета\n";
+        return ADD_INVALID_PARAM;
+    }
+
+    return addTicket(std::make_shared<UnlimitedTicket>(number, issueReason));
 }
 
 TicketRegistry::ControlResult TicketRegistry::tryControl(int ticketNumber, int currentTime) {

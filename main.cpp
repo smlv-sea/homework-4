@@ -30,45 +30,92 @@ extern "C" {
 
     // 1. Управление реестром
     TICKET_API void* CreateTicketRegistry() {
-        return new TicketRegistry();
+        try {
+            return new TicketRegistry();
+        }
+        catch (...) {
+            return nullptr;
+        }
     }
 
     TICKET_API void DeleteTicketRegistry(void* registry) {
-        delete static_cast<TicketRegistry*>(registry);
+        if (registry) {
+            delete static_cast<TicketRegistry*>(registry);
+        }
     }
 
-    // 2. Добавление билетов
-    TICKET_API void AddLimitedTicket(void* registry, int number, int saleTime, int maxTrips) {
+    // 2. Добавление билетов с возвращаемыми значениями
+    TICKET_API int AddLimitedTicket(void* registry, int number, int saleTime, int maxTrips) {
+        if (!registry) return TicketRegistry::ADD_UNKNOWN_ERROR;
+
         auto reg = static_cast<TicketRegistry*>(registry);
-        reg->addLimitedRidesTicket(number, saleTime, maxTrips);
-        std::cout << "[DLL] Added limited ticket #" << number << std::endl;
+        auto result = reg->addLimitedRidesTicket(number, saleTime, maxTrips);
+
+        if (result == TicketRegistry::ADD_SUCCESS) {
+            std::cout << "[DLL] Added limited ticket #" << number << std::endl;
+        }
+        else {
+            std::cout << "[DLL] Failed to add limited ticket #" << number
+                << " (error: " << result << ")" << std::endl;
+        }
+
+        return static_cast<int>(result);
     }
 
-    TICKET_API void AddTimedTicket(void* registry, int number, int saleTime, int validityPeriod) {
+    TICKET_API int AddTimedTicket(void* registry, int number, int saleTime, int validityPeriod) {
+        if (!registry) return TicketRegistry::ADD_UNKNOWN_ERROR;
+
         auto reg = static_cast<TicketRegistry*>(registry);
-        reg->addTimedTicket(number, saleTime, validityPeriod);
-        std::cout << "[DLL] Added timed ticket #" << number << std::endl;
+        auto result = reg->addTimedTicket(number, saleTime, validityPeriod);
+
+        if (result == TicketRegistry::ADD_SUCCESS) {
+            std::cout << "[DLL] Added timed ticket #" << number << std::endl;
+        }
+        else {
+            std::cout << "[DLL] Failed to add timed ticket #" << number
+                << " (error: " << result << ")" << std::endl;
+        }
+
+        return static_cast<int>(result);
     }
 
-    TICKET_API void AddUnlimitedTicket(void* registry, int number, const char* issueReason) {
+    TICKET_API int AddUnlimitedTicket(void* registry, int number, const char* issueReason) {
+        if (!registry) return TicketRegistry::ADD_UNKNOWN_ERROR;
+        if (!issueReason) return TicketRegistry::ADD_INVALID_PARAM;
+
         auto reg = static_cast<TicketRegistry*>(registry);
-        reg->addUnlimitedTicket(number, std::string(issueReason));
-        std::cout << "[DLL] Added unlimited ticket #" << number << std::endl;
+        auto result = reg->addUnlimitedTicket(number, std::string(issueReason));
+
+        if (result == TicketRegistry::ADD_SUCCESS) {
+            std::cout << "[DLL] Added unlimited ticket #" << number << std::endl;
+        }
+        else {
+            std::cout << "[DLL] Failed to add unlimited ticket #" << number
+                << " (error: " << result << ")" << std::endl;
+        }
+
+        return static_cast<int>(result);
     }
 
     // 3. Проверка билета
     TICKET_API int TryControl(void* registry, int ticketNumber, int currentTime) {
+        if (!registry) return TicketRegistry::ALARM;
+
         auto reg = static_cast<TicketRegistry*>(registry);
         return static_cast<int>(reg->tryControl(ticketNumber, currentTime));
     }
 
     // 4. Информация
     TICKET_API int GetTicketCount(void* registry) {
+        if (!registry) return 0;
+
         auto reg = static_cast<TicketRegistry*>(registry);
         return static_cast<int>(reg->getTicketCount());
     }
 
     TICKET_API void PrintAllTickets(void* registry) {
+        if (!registry) return;
+
         auto reg = static_cast<TicketRegistry*>(registry);
         reg->printAllTickets();
     }
@@ -80,35 +127,75 @@ extern "C" {
         TicketRegistry registry;
 
         // Создаем несколько билетов
-        registry.addLimitedRidesTicket(1, 1000, 3);
-        registry.addTimedTicket(2, 2000, 3600);
-        registry.addUnlimitedTicket(3, "Test VIP");
+        auto r1 = registry.addLimitedRidesTicket(1, 1000, 3);
+        auto r2 = registry.addTimedTicket(2, 2000, 3600);
+        auto r3 = registry.addUnlimitedTicket(3, "Test VIP");
 
-        std::cout << "Created 3 test tickets" << std::endl;
+        std::cout << "Create results: " << r1 << ", " << r2 << ", " << r3 << std::endl;
+        std::cout << "Created " << registry.getTicketCount() << " test tickets" << std::endl;
 
-        // Тестируем
+        // Тестируем дубликаты
+        std::cout << "\nTesting duplicate ticket #1:" << std::endl;
+        auto r4 = registry.addLimitedRidesTicket(1, 1200, 5);
+        std::cout << "Duplicate add result: " << r4 << " (should be 1 = DUPLICATE)" << std::endl;
+
+        // Тестируем проходы
         std::cout << "\nTesting ticket #1 (limited):" << std::endl;
-        auto r1 = registry.tryControl(1, 1100);
-        std::cout << "Result: " << (r1 == TicketRegistry::ALLOWED ? "ALLOWED" : "DENIED") << std::endl;
+        auto c1 = registry.tryControl(1, 1100);
+        std::cout << "Result: " << (c1 == TicketRegistry::ALLOWED ? "ALLOWED" : "DENIED") << std::endl;
 
         std::cout << "\nTesting ticket #2 (timed):" << std::endl;
-        auto r2 = registry.tryControl(2, 2100);
-        std::cout << "Result: " << (r2 == TicketRegistry::ALLOWED ? "ALLOWED" : "DENIED") << std::endl;
+        auto c2 = registry.tryControl(2, 2100);
+        std::cout << "Result: " << (c2 == TicketRegistry::ALLOWED ? "ALLOWED" : "DENIED") << std::endl;
 
         std::cout << "\nTesting ticket #3 (unlimited):" << std::endl;
-        auto r3 = registry.tryControl(3, 3000);
-        std::cout << "Result: " << (r3 == TicketRegistry::ALLOWED ? "ALLOWED" : "DENIED") << std::endl;
+        auto c3 = registry.tryControl(3, 3000);
+        std::cout << "Result: " << (c3 == TicketRegistry::ALLOWED ? "ALLOWED" : "DENIED") << std::endl;
+
+        // Тестируем несуществующий билет
+        std::cout << "\nTesting non-existent ticket #999:" << std::endl;
+        auto c4 = registry.tryControl(999, 4000);
+        std::cout << "Result: " << (c4 == TicketRegistry::ALLOWED ? "ALLOWED" :
+            c4 == TicketRegistry::DENIED ? "DENIED" : "ALARM") << std::endl;
 
         std::cout << "\n=== TEST COMPLETE ===" << std::endl;
     }
 
-    // 6. Получение строки результата
+    // 6. Получение строки результата проверки
     TICKET_API const char* GetControlResultString(int result) {
         switch (result) {
         case 0: return "ALLOWED";
         case 1: return "DENIED";
         case 2: return "ALARM";
         default: return "UNKNOWN";
+        }
+    }
+
+    // 7. Получение строки сообщения об ошибке добавления билета
+    TICKET_API const char* GetAddTicketErrorString(int errorCode) {
+        switch (errorCode) {
+        case 0: return "Success - ticket added successfully";
+        case 1: return "Duplicate ticket number - ticket with this number already exists";
+        case 2: return "Invalid ticket number - number must be positive";
+        case 3: return "Invalid parameters - check ticket parameters";
+        case 4: return "Registry full - cannot add more tickets";
+        case 5: return "Memory error - failed to allocate memory";
+        case 6: return "Unknown error - internal DLL error";
+        default: return "Invalid error code";
+        }
+    }
+
+    // 8. Дополнительная функция для получения кода ошибки в текстовом виде (русский)
+    TICKET_API const char* GetAddTicketErrorStringRu(int errorCode) {
+        switch (errorCode) {
+        case 0: return "Успех - билет успешно добавлен";
+        case 1: return "Дубликат номера - билет с таким номером уже существует";
+        case 2: return "Неверный номер - номер должен быть положительным";
+        case 3: return "Неверные параметры - проверьте параметры билета";
+        case 4: return "Реестр полон - нельзя добавить больше билетов";
+        case 5: return "Ошибка памяти - не удалось выделить память";
+        case 6: return "Неизвестная ошибка - внутренняя ошибка DLL";
+        default: return "Неверный код ошибки";
         }
     }
 
