@@ -19,9 +19,7 @@
 
 extern "C" {
 
-    // === УПРОЩЕННЫЙ ИНТЕРФЕЙС DLL ===
-
-    // 1. Управление реестром
+        // 1. Управление реестром
     TICKET_API void* CreateTicketRegistry() {
         try {
             return new TicketRegistry();
